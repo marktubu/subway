@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:lpinyin/lpinyin.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
@@ -138,7 +139,7 @@ class SpeechService extends ChangeNotifier {
     final targetPinyin = _stationPinyinMap[normalizedTarget] ?? 
         PinyinHelper.getPinyin(normalizedTarget, separator: '', format: PinyinFormat.WITHOUT_TONE);
     
-    if (textPinyin.contains(targetPinyin)) {
+    if (_fuzzyContains(textPinyin, targetPinyin, 1)) {
       // Conflict check: ensure we didn't match a longer station name's pinyin
       // e.g. target="上海" (shanghai), text="上海南站" (shanghainan...)
       // textPinyin contains "shanghai", but it also contains "shanghainan..."
@@ -151,7 +152,7 @@ class SpeechService extends ChangeNotifier {
             
         // If otherStation starts with target (phonetically) AND text contains otherStation
         // Then we likely matched the longer station, so this is a false positive for the shorter one.
-        if (otherPinyin.startsWith(targetPinyin) && textPinyin.contains(otherPinyin)) {
+        if (otherPinyin.startsWith(targetPinyin) && _fuzzyContains(textPinyin, otherPinyin, 1)) {
           return false; 
         }
       }
@@ -163,5 +164,45 @@ class SpeechService extends ChangeNotifier {
 
   String _normalize(String value) {
     return value.replaceAll(RegExp(r'[\s，。、“”‘’；：！？,.!?]'), '');
+  }
+
+  bool _fuzzyContains(String text, String pattern, int tolerance) {
+    if (pattern.isEmpty) return true;
+    if (text.length < pattern.length - tolerance) return false;
+
+    // Sliding window with tolerance length adjustment
+    // We check substrings of text with length: pattern.length, pattern.length + 1, pattern.length - 1
+    int pLen = pattern.length;
+    for (int len = pLen - tolerance; len <= pLen + tolerance; len++) {
+      if (len <= 0) continue;
+      for (int i = 0; i <= text.length - len; i++) {
+        String sub = text.substring(i, i + len);
+        if (_levenshtein(sub, pattern) <= tolerance) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  int _levenshtein(String s, String t) {
+    if (s == t) return 0;
+    if (s.isEmpty) return t.length;
+    if (t.isEmpty) return s.length;
+
+    List<int> v0 = List<int>.generate(t.length + 1, (i) => i);
+    List<int> v1 = List<int>.filled(t.length + 1, 0);
+
+    for (int i = 0; i < s.length; i++) {
+      v1[0] = i + 1;
+      for (int j = 0; j < t.length; j++) {
+        int cost = (s.codeUnitAt(i) == t.codeUnitAt(j)) ? 0 : 1;
+        v1[j + 1] = min(v1[j] + 1, min(v0[j + 1] + 1, v0[j] + cost));
+      }
+      for (int j = 0; j < v0.length; j++) {
+        v0[j] = v1[j];
+      }
+    }
+    return v1[t.length];
   }
 }
