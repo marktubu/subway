@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/metro_data.dart';
-import '../services/route_service.dart';
+import '../services/app_state.dart';
 import 'listening_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -32,7 +31,8 @@ class HomePageState extends State<HomePage>
   }
 
   void _startRide() {
-    final routeService = Provider.of<RouteService>(context, listen: false);
+    final appState = Provider.of<AppState>(context, listen: false);
+    final routeService = appState.routeService;
     List<String> routeInput = [];
 
     if (_tabController.index == 0) {
@@ -72,8 +72,9 @@ class HomePageState extends State<HomePage>
 
   @override
   Widget build(BuildContext context) {
-    final metroData = Provider.of<MetroData>(context);
-    _selectedCity ??= metroData.city;
+    final appState = Provider.of<AppState>(context);
+    final metroData = appState.currentMetroData;
+    _selectedCity ??= appState.selectedCity;
     Set<String> allStations = {};
     for (var line in metroData.lines) {
       allStations.addAll(line.stations);
@@ -94,7 +95,7 @@ class HomePageState extends State<HomePage>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildModeA(stationList, metroData.city),
+          _buildModeA(stationList, appState.cityNames),
           _buildModeB(stationList),
         ],
       ),
@@ -112,7 +113,7 @@ class HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildModeA(List<String> stationList, String city) {
+  Widget _buildModeA(List<String> stationList, List<String> cityNames) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -123,8 +124,24 @@ class HomePageState extends State<HomePage>
               child: DropdownButton<String>(
                 isExpanded: true,
                 value: _selectedCity,
-                items: [DropdownMenuItem(value: city, child: Text(city))],
-                onChanged: (v) => setState(() => _selectedCity = v),
+                items: cityNames
+                    .map(
+                      (city) =>
+                          DropdownMenuItem(value: city, child: Text(city)),
+                    )
+                    .toList(),
+                onChanged: (v) {
+                  if (v == null) {
+                    return;
+                  }
+                  Provider.of<AppState>(context, listen: false).selectCity(v);
+                  setState(() {
+                    _selectedCity = v;
+                    _startStation = null;
+                    _endStation = null;
+                    _multiStations.clear();
+                  });
+                },
               ),
             ),
           ),

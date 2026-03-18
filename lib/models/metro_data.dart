@@ -1,3 +1,20 @@
+class MetroCatalog {
+  final List<MetroData> cities;
+
+  MetroCatalog({required this.cities});
+
+  factory MetroCatalog.fromJson(Map<String, dynamic> json) {
+    if (json.containsKey('cities')) {
+      return MetroCatalog(
+        cities: (json['cities'] as List)
+            .map((e) => MetroData.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+    }
+    return MetroCatalog(cities: [MetroData.fromJson(json)]);
+  }
+}
+
 class MetroData {
   final String city;
   final List<MetroLine> lines;

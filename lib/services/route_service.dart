@@ -34,6 +34,7 @@ class RouteService {
   final MetroData metroData;
   late final Map<Node, List<Edge>> graph;
   late final Map<String, MetroLine> lineMap;
+  late final Map<String, Set<String>> transferMap;
 
   RouteService(this.metroData) {
     _buildGraph();
@@ -42,6 +43,7 @@ class RouteService {
   void _buildGraph() {
     graph = {};
     lineMap = {for (var line in metroData.lines) line.id: line};
+    transferMap = {};
 
     // Add intra-line edges
     for (var line in metroData.lines) {
@@ -64,6 +66,7 @@ class RouteService {
     for (var transfer in metroData.transfers) {
       String station = transfer.station;
       List<String> lines = transfer.lines;
+      transferMap[station] = lines.toSet();
 
       for (int i = 0; i < lines.length; i++) {
         for (int j = i + 1; j < lines.length; j++) {
@@ -101,6 +104,9 @@ class RouteService {
       for (var endNode in endNodes) {
         var pathInfo = _dijkstra(startNode, endNode);
         if (pathInfo != null) {
+          if (!_isPathTransferValid(pathInfo.path)) {
+            continue;
+          }
           if (minCost == -1 || pathInfo.cost < minCost) {
             minCost = pathInfo.cost;
             bestPath = pathInfo.path;
@@ -142,6 +148,9 @@ class RouteService {
         for (var endNode in endNodes) {
           var pathInfo = _dijkstra(startNode, endNode);
           if (pathInfo != null) {
+            if (!_isPathTransferValid(pathInfo.path)) {
+              continue;
+            }
             if (minCost == -1 || pathInfo.cost < minCost) {
               minCost = pathInfo.cost;
               bestSegment = pathInfo.path;
@@ -228,6 +237,25 @@ class RouteService {
 
     tasks.add(StopTask.exit(name: path.last.station));
     return tasks;
+  }
+
+  bool _isPathTransferValid(List<Node> path) {
+    for (int i = 1; i < path.length; i++) {
+      final prev = path[i - 1];
+      final curr = path[i];
+      if (prev.station != curr.station || prev.lineId == curr.lineId) {
+        continue;
+      }
+      final transferLines = transferMap[prev.station];
+      if (transferLines == null) {
+        return false;
+      }
+      if (!transferLines.contains(prev.lineId) ||
+          !transferLines.contains(curr.lineId)) {
+        return false;
+      }
+    }
+    return true;
   }
 }
 

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'models/metro_data.dart';
-import 'services/route_service.dart';
+import 'services/app_state.dart';
 import 'services/speech_service.dart';
 import 'screens/home_page.dart';
 
@@ -12,21 +12,20 @@ void main() async {
 
   final String response = await rootBundle.loadString('assets/metro_data.json');
   final data = await json.decode(response);
-  final metroData = MetroData.fromJson(data);
-  final routeService = RouteService(metroData);
+  final metroCatalog = MetroCatalog.fromJson(data);
 
   final speechService = SpeechService();
-  speechService.setKnownStations(
-    metroData.lines.expand((line) => line.stations),
+  final appState = AppState(
+    metroCatalog: metroCatalog,
+    speechService: speechService,
   );
   await speechService.init();
 
   runApp(
     MultiProvider(
       providers: [
-        Provider<MetroData>.value(value: metroData),
-        Provider<RouteService>.value(value: routeService),
         ChangeNotifierProvider<SpeechService>.value(value: speechService),
+        ChangeNotifierProvider<AppState>.value(value: appState),
       ],
       child: const MyApp(),
     ),
