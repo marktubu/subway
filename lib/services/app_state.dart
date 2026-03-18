@@ -17,8 +17,7 @@ class AppState extends ChangeNotifier {
     required this.speechService,
     required this.prefs,
   }) {
-    _selectedCity =
-        prefs.getString('selectedCity') ?? metroCatalog.cities.first.city;
+    _selectedCity = prefs.getString('selectedCity') ?? metroCatalog.cities.first.city;
     // Fallback if saved city is invalid
     if (!metroCatalog.cities.any((e) => e.city == _selectedCity)) {
       _selectedCity = metroCatalog.cities.first.city;
