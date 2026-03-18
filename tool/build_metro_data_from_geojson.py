@@ -174,7 +174,25 @@ def build_city(data_dir: Path, city_file_name: str, city_name: str):
     transfers.sort(key=lambda x: x["station"])
     lines.sort(key=lambda x: x["name"])
 
-    return {"city": city_name, "lines": lines, "transfers": transfers}
+    # Extract station coordinates
+    station_coords = {}
+    for name, s in station_by_name.items():
+        # GeoJSON is [lon, lat], but usually apps use [lat, lon] or handle it specifically.
+        # Let's keep it as [lon, lat] and handle it in Dart if needed, or swap here.
+        # OpenMeteo needs latitude, longitude. So let's swap to [lat, lon] to be safe/standard for app usage?
+        # Actually standard GeoJSON is [lon, lat]. Let's stick to [lon, lat] but document it.
+        # Wait, the user wants accurate data.
+        # Let's verify what OpenMeteo expects: latitude, longitude.
+        # So I will store as {"name": [lat, lon]} to avoid confusion in Dart.
+        lon, lat = s["coord"]
+        station_coords[name] = [lat, lon]
+
+    return {
+        "city": city_name,
+        "lines": lines,
+        "transfers": transfers,
+        "stations_geo": station_coords,
+    }
 
 
 def main():

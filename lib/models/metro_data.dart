@@ -19,16 +19,38 @@ class MetroData {
   final String city;
   final List<MetroLine> lines;
   final List<MetroTransfer> transfers;
+  final Map<String, List<double>> stationsGeo;
 
-  MetroData({required this.city, required this.lines, required this.transfers});
+  MetroData({
+    required this.city,
+    required this.lines,
+    required this.transfers,
+    required this.stationsGeo,
+  });
 
   factory MetroData.fromJson(Map<String, dynamic> json) {
+    Map<String, List<double>> stationsGeo = {};
+    if (json.containsKey('stations_geo')) {
+      final geoMap = json['stations_geo'] as Map<String, dynamic>;
+      geoMap.forEach((key, value) {
+        if (value is List && value.length == 2) {
+          stationsGeo[key] = [
+            (value[0] as num).toDouble(),
+            (value[1] as num).toDouble(),
+          ];
+        }
+      });
+    }
+
     return MetroData(
       city: json['city'] as String,
-      lines: (json['lines'] as List).map((e) => MetroLine.fromJson(e)).toList(),
-      transfers: (json['transfers'] as List)
-          .map((e) => MetroTransfer.fromJson(e))
-          .toList(),
+      lines:
+          (json['lines'] as List).map((e) => MetroLine.fromJson(e)).toList(),
+      transfers:
+          (json['transfers'] as List)
+              .map((e) => MetroTransfer.fromJson(e))
+              .toList(),
+      stationsGeo: stationsGeo,
     );
   }
 }

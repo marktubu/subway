@@ -29,16 +29,19 @@ void main() {
           transfers: [
             MetroTransfer(station: '人民广场', lines: ['line_1', 'line_2']),
           ],
+          stationsGeo: {},
         ),
         MetroData(
           city: '杭州',
           lines: [
-            MetroLine(id: 'line_1', name: '1号线', stations: ['湘湖', '龙翔桥']),
-            MetroLine(id: 'line_2', name: '2号线', stations: ['钱江路', '龙翔桥']),
+            MetroLine(
+              id: 'line_1',
+              name: '1号线',
+              stations: ['湘湖', '武林广场'],
+            ),
           ],
-          transfers: [
-            MetroTransfer(station: '龙翔桥', lines: ['line_1', 'line_2']),
-          ],
+          transfers: [],
+          stationsGeo: {},
         ),
       ],
     );

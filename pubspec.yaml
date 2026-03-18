@@ -42,6 +42,7 @@ dependencies:
   dropdown_search: ^6.0.2
   shared_preferences: ^2.5.4
   lpinyin: ^2.0.3
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

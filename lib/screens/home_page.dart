@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import '../services/app_state.dart';
+import '../services/weather_service.dart';
 import 'listening_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -18,6 +19,9 @@ class HomePageState extends State<HomePage>
   String? _endStation;
   String? _selectedCity;
   List<String> _multiStations = [];
+  final WeatherService _weatherService = WeatherService();
+  WeatherData? _startWeather;
+  WeatherData? _endWeather;
 
   @override
   void initState() {
@@ -26,6 +30,12 @@ class HomePageState extends State<HomePage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadSavedRoute();
     });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   void _loadSavedRoute() {
@@ -55,6 +65,7 @@ class HomePageState extends State<HomePage>
       }
       _multiStations.removeWhere((s) => !allStations.contains(s));
     });
+    _updateWeather();
   }
 
   void _saveRoute() {
@@ -64,6 +75,37 @@ class HomePageState extends State<HomePage>
     prefs.setStringList('multiStations', _multiStations);
   }
 
+  Future<void> _updateWeather() async {
+    final appState = Provider.of<AppState>(context, listen: false);
+    final stationsGeo = appState.currentMetroData.stationsGeo;
+
+    if (_startStation != null && stationsGeo.containsKey(_startStation)) {
+      final geo = stationsGeo[_startStation]!;
+      // Note: build_metro_data_from_geojson.py saves as [lat, lon] now
+      final weather = await _weatherService.fetchWeather(geo[0], geo[1]);
+      if (mounted) setState(() => _startWeather = weather);
+    } else {
+      if (mounted) setState(() => _startWeather = null);
+    }
+
+    if (_endStation != null && stationsGeo.containsKey(_endStation)) {
+      final geo = stationsGeo[_endStation]!;
+      final weather = await _weatherService.fetchWeather(geo[0], geo[1]);
+      if (mounted) setState(() => _endWeather = weather);
+    } else {
+      if (mounted) setState(() => _endWeather = null);
+    }
+  }
+
+  void _swapStations() {
+    setState(() {
+      final temp = _startStation;
+      _startStation = _endStation;
+      _endStation = temp;
+    });
+    _updateWeather();
+  }
+
   void _startRide() {
     final appState = Provider.of<AppState>(context, listen: false);
     final routeService = appState.routeService;
@@ -71,17 +113,17 @@ class HomePageState extends State<HomePage>
 
     if (_tabController.index == 0) {
       if (_startStation == null || _endStation == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请选择出发站和终点站')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('请选择出发站和终点站')));
         return;
       }
       routeInput = [_startStation!, _endStation!];
     } else {
       if (_multiStations.length < 2) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请至少添加两个途经站')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('请至少添加两个途经站')));
         return;
       }
       routeInput = List.from(_multiStations);
@@ -104,12 +146,6 @@ class HomePageState extends State<HomePage>
             ListeningPage(tasks: tasks, originalStations: routeInput),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   @override
@@ -155,6 +191,20 @@ class HomePageState extends State<HomePage>
     );
   }
 
+  Widget _buildWeatherInfo(WeatherData? weather) {
+    if (weather == null) return const SizedBox.shrink();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(_weatherService.getWeatherIcon(weather.weatherCode), size: 20),
+        const SizedBox(width: 4),
+        Text(
+          '${weather.temperature}°C ${_weatherService.getWeatherDescription(weather.weatherCode)}',
+        ),
+      ],
+    );
+  }
+
   Widget _buildModeA(List<String> stationList, List<String> cityNames) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -181,6 +231,8 @@ class HomePageState extends State<HomePage>
                     _selectedCity = v;
                     _startStation = null;
                     _endStation = null;
+                    _startWeather = null;
+                    _endWeather = null;
                     _multiStations.clear();
                   });
                 },
@@ -188,44 +240,78 @@ class HomePageState extends State<HomePage>
             ),
           ),
           const SizedBox(height: 16),
-          DropdownSearch<String>(
-            popupProps: const PopupProps.menu(
-              showSearchBox: true,
-              searchFieldProps: TextFieldProps(
-                decoration: InputDecoration(hintText: "搜索出发站"),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownSearch<String>(
+                  popupProps: const PopupProps.menu(
+                    showSearchBox: true,
+                    searchFieldProps: TextFieldProps(
+                      decoration: InputDecoration(hintText: "搜索出发站"),
+                    ),
+                  ),
+                  items: (String filter, LoadProps? loadProps) async {
+                    return stationList
+                        .where((s) => s.contains(filter))
+                        .toList();
+                  },
+                  decoratorProps: const DropDownDecoratorProps(
+                    decoration: InputDecoration(
+                      labelText: "出发站",
+                      hintText: "请选择或搜索出发站",
+                    ),
+                  ),
+                  onChanged: (v) {
+                    setState(() => _startStation = v);
+                    _updateWeather();
+                  },
+                  selectedItem: _startStation,
+                ),
               ),
-            ),
-            items: (String filter, LoadProps? loadProps) async {
-              return stationList.where((s) => s.contains(filter)).toList();
-            },
-            decoratorProps: const DropDownDecoratorProps(
-              decoration: InputDecoration(
-                labelText: "出发站",
-                hintText: "请选择或搜索出发站",
-              ),
-            ),
-            onChanged: (v) => setState(() => _startStation = v),
-            selectedItem: _startStation,
+              const SizedBox(width: 8),
+              _buildWeatherInfo(_startWeather),
+            ],
           ),
-          const SizedBox(height: 16),
-          DropdownSearch<String>(
-            popupProps: const PopupProps.menu(
-              showSearchBox: true,
-              searchFieldProps: TextFieldProps(
-                decoration: InputDecoration(hintText: "搜索终点站"),
-              ),
+          const SizedBox(height: 8),
+          Center(
+            child: IconButton(
+              icon: const Icon(Icons.swap_vert),
+              onPressed: _swapStations,
+              tooltip: "交换起终点",
             ),
-            items: (String filter, LoadProps? loadProps) async {
-              return stationList.where((s) => s.contains(filter)).toList();
-            },
-            decoratorProps: const DropDownDecoratorProps(
-              decoration: InputDecoration(
-                labelText: "终点站",
-                hintText: "请选择或搜索终点站",
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownSearch<String>(
+                  popupProps: const PopupProps.menu(
+                    showSearchBox: true,
+                    searchFieldProps: TextFieldProps(
+                      decoration: InputDecoration(hintText: "搜索终点站"),
+                    ),
+                  ),
+                  items: (String filter, LoadProps? loadProps) async {
+                    return stationList
+                        .where((s) => s.contains(filter))
+                        .toList();
+                  },
+                  decoratorProps: const DropDownDecoratorProps(
+                    decoration: InputDecoration(
+                      labelText: "终点站",
+                      hintText: "请选择或搜索终点站",
+                    ),
+                  ),
+                  onChanged: (v) {
+                    setState(() => _endStation = v);
+                    _updateWeather();
+                  },
+                  selectedItem: _endStation,
+                ),
               ),
-            ),
-            onChanged: (v) => setState(() => _endStation = v),
-            selectedItem: _endStation,
+              const SizedBox(width: 8),
+              _buildWeatherInfo(_endWeather),
+            ],
           ),
         ],
       ),
@@ -244,13 +330,13 @@ class HomePageState extends State<HomePage>
                   popupProps: const PopupProps.menu(
                     showSearchBox: true,
                     searchFieldProps: TextFieldProps(
-                      decoration: InputDecoration(
-                        hintText: "搜索途经站",
-                      ),
+                      decoration: InputDecoration(hintText: "搜索途经站"),
                     ),
                   ),
                   items: (String filter, LoadProps? loadProps) async {
-                    return stationList.where((s) => s.contains(filter)).toList();
+                    return stationList
+                        .where((s) => s.contains(filter))
+                        .toList();
                   },
                   decoratorProps: const DropDownDecoratorProps(
                     decoration: InputDecoration(

@@ -13,6 +13,7 @@ void main() {
     transfers: [
       MetroTransfer(station: '人民广场', lines: ['line_1', 'line_2']),
     ],
+    stationsGeo: {},
   );
 
   test('自动规划可生成换乘与终点任务', () {
