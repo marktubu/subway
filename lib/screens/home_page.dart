@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:dropdown_search/dropdown_search.dart';
 import '../services/app_state.dart';
 import 'listening_page.dart';
 
@@ -16,18 +17,51 @@ class HomePageState extends State<HomePage>
   String? _startStation;
   String? _endStation;
   String? _selectedCity;
-  final List<String> _multiStations = [];
+  List<String> _multiStations = [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSavedRoute();
+    });
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  void _loadSavedRoute() {
+    final appState = Provider.of<AppState>(context, listen: false);
+    final prefs = appState.prefs;
+
+    setState(() {
+      _startStation = prefs.getString('startStation');
+      _endStation = prefs.getString('endStation');
+      final savedMulti = prefs.getStringList('multiStations');
+      if (savedMulti != null) {
+        _multiStations = List.from(savedMulti);
+      }
+
+      // Validation: if saved stations are not in the current city, clear them
+      final metroData = appState.currentMetroData;
+      Set<String> allStations = {};
+      for (var line in metroData.lines) {
+        allStations.addAll(line.stations);
+      }
+
+      if (_startStation != null && !allStations.contains(_startStation)) {
+        _startStation = null;
+      }
+      if (_endStation != null && !allStations.contains(_endStation)) {
+        _endStation = null;
+      }
+      _multiStations.removeWhere((s) => !allStations.contains(s));
+    });
+  }
+
+  void _saveRoute() {
+    final prefs = Provider.of<AppState>(context, listen: false).prefs;
+    if (_startStation != null) prefs.setString('startStation', _startStation!);
+    if (_endStation != null) prefs.setString('endStation', _endStation!);
+    prefs.setStringList('multiStations', _multiStations);
   }
 
   void _startRide() {
@@ -37,21 +71,23 @@ class HomePageState extends State<HomePage>
 
     if (_tabController.index == 0) {
       if (_startStation == null || _endStation == null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('请选择出发站和终点站')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请选择出发站和终点站')),
+        );
         return;
       }
       routeInput = [_startStation!, _endStation!];
     } else {
       if (_multiStations.length < 2) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('请至少添加两个途经站')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请至少添加两个途经站')),
+        );
         return;
       }
       routeInput = List.from(_multiStations);
     }
+
+    _saveRoute();
 
     var tasks = routeService.planMultiRoute(routeInput);
     if (tasks == null || tasks.isEmpty) {
@@ -68,6 +104,12 @@ class HomePageState extends State<HomePage>
             ListeningPage(tasks: tasks, originalStations: routeInput),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override
@@ -146,24 +188,44 @@ class HomePageState extends State<HomePage>
             ),
           ),
           const SizedBox(height: 16),
-          DropdownButton<String>(
-            isExpanded: true,
-            hint: const Text('出发站'),
-            value: _startStation,
-            items: stationList
-                .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                .toList(),
+          DropdownSearch<String>(
+            popupProps: const PopupProps.menu(
+              showSearchBox: true,
+              searchFieldProps: TextFieldProps(
+                decoration: InputDecoration(hintText: "搜索出发站"),
+              ),
+            ),
+            items: (String filter, LoadProps? loadProps) async {
+              return stationList.where((s) => s.contains(filter)).toList();
+            },
+            decoratorProps: const DropDownDecoratorProps(
+              decoration: InputDecoration(
+                labelText: "出发站",
+                hintText: "请选择或搜索出发站",
+              ),
+            ),
             onChanged: (v) => setState(() => _startStation = v),
+            selectedItem: _startStation,
           ),
           const SizedBox(height: 16),
-          DropdownButton<String>(
-            isExpanded: true,
-            hint: const Text('终点站'),
-            value: _endStation,
-            items: stationList
-                .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                .toList(),
+          DropdownSearch<String>(
+            popupProps: const PopupProps.menu(
+              showSearchBox: true,
+              searchFieldProps: TextFieldProps(
+                decoration: InputDecoration(hintText: "搜索终点站"),
+              ),
+            ),
+            items: (String filter, LoadProps? loadProps) async {
+              return stationList.where((s) => s.contains(filter)).toList();
+            },
+            decoratorProps: const DropDownDecoratorProps(
+              decoration: InputDecoration(
+                labelText: "终点站",
+                hintText: "请选择或搜索终点站",
+              ),
+            ),
             onChanged: (v) => setState(() => _endStation = v),
+            selectedItem: _endStation,
           ),
         ],
       ),
@@ -178,12 +240,24 @@ class HomePageState extends State<HomePage>
           child: Row(
             children: [
               Expanded(
-                child: DropdownButton<String>(
-                  isExpanded: true,
-                  hint: const Text('添加站点'),
-                  items: stationList
-                      .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                      .toList(),
+                child: DropdownSearch<String>(
+                  popupProps: const PopupProps.menu(
+                    showSearchBox: true,
+                    searchFieldProps: TextFieldProps(
+                      decoration: InputDecoration(
+                        hintText: "搜索途经站",
+                      ),
+                    ),
+                  ),
+                  items: (String filter, LoadProps? loadProps) async {
+                    return stationList.where((s) => s.contains(filter)).toList();
+                  },
+                  decoratorProps: const DropDownDecoratorProps(
+                    decoration: InputDecoration(
+                      labelText: "添加站点",
+                      hintText: "请选择或搜索站点",
+                    ),
+                  ),
                   onChanged: (v) {
                     if (v != null) {
                       setState(() => _multiStations.add(v));

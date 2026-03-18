@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:subway/models/metro_data.dart';
 import 'package:subway/screens/home_page.dart';
 import 'package:subway/services/app_state.dart';
 import 'package:subway/services/speech_service.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   testWidgets('首页可正常渲染模式标签', (WidgetTester tester) async {
+    final prefs = await SharedPreferences.getInstance();
     final metroCatalog = MetroCatalog(
       cities: [
         MetroData(
@@ -40,6 +46,7 @@ void main() {
     final appState = AppState(
       metroCatalog: metroCatalog,
       speechService: speechService,
+      prefs: prefs,
     );
 
     await tester.pumpWidget(
